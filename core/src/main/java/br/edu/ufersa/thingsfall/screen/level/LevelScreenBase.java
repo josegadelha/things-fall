@@ -13,6 +13,7 @@ import br.edu.ufersa.thingsfall.screen.geometry.VictoryArea;
 import br.edu.ufersa.thingsfall.ui.ScrollablePanel;
 import br.edu.ufersa.thingsfall.ui.SimplePhysicsSkin;
 import br.edu.ufersa.thingsfall.ui.SimulationButtons;
+import br.edu.ufersa.thingsfall.ui.SimulationHistory;
 import br.edu.ufersa.thingsfall.ui.SimulationInputController;
 import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
@@ -23,9 +24,12 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.Group;
+import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
@@ -55,24 +59,35 @@ public abstract class LevelScreenBase extends ScreenAdapter {
     private final Stage panelStage;
     private final InputMultiplexer inputMultiplexer;
     protected final SimulationInputController simulationInputController;
+    private final SimulationHistory simulationHistory;
     protected final Skin skin;
     protected final Game game;
     protected final TextButton squareButton;
     protected final TextButton circleButton;
     protected final TextButton followObjectButton;
     protected final TextButton resetCameraButton;
+    private final TextButton undoButton;
+    private final TextButton redoButton;
+    private final Table shapeSizeControl;
     protected final Table shapeOptionsTable;
     protected final Table physicsOptionsTable;
     protected final Table cameraOptionsTable;
     protected final Table navigationOptionsTable;
+    private final TextButton backToMenuButton;
 
     private TextButton[] toolButtons;
     private VictoryArea victoryArea;
     private boolean winConditionMet;
+    private boolean simulationStarted;
 
     protected LevelScreenBase(Game game, int levelIndex) {
+        this(game, levelIndex, new SimulationHistory());
+    }
+
+    protected LevelScreenBase(Game game, int levelIndex, SimulationHistory simulationHistory) {
         this.game = game;
         this.levelIndex = levelIndex;
+        this.simulationHistory = simulationHistory;
 
         panelCamera = new OrthographicCamera();
         simulationCamera = new OrthographicCamera();
@@ -99,14 +114,18 @@ public abstract class LevelScreenBase extends ScreenAdapter {
             simulationViewport,
             simulationCamera,
             physicsWorld,
+            simulationHistory,
             WORLD_UNITS_PER_PIXEL
         );
         squareButton = SimulationButtons.createSquareButton(skin, simulationInputController);
         circleButton = SimulationButtons.createCircleButton(skin, simulationInputController);
         followObjectButton = SimulationButtons.createFollowObjectButton(skin, simulationInputController);
         resetCameraButton = SimulationButtons.createResetCameraButton(skin, simulationInputController);
+        undoButton = SimulationButtons.createUndoButton(skin, simulationHistory, physicsWorld);
+        redoButton = SimulationButtons.createRedoButton(skin, simulationHistory, physicsWorld);
+        backToMenuButton = SimulationButtons.createBackToLevelSelectionButton(game, this, skin);
 
-        Table shapeSizeControl = SimulationButtons.createShapeSizeControl(
+        shapeSizeControl = SimulationButtons.createShapeSizeControl(
             skin,
             squareButton,
             circleButton,
@@ -120,10 +139,6 @@ public abstract class LevelScreenBase extends ScreenAdapter {
         cameraOptionsTable.add(followObjectButton).width(300).height(50);
         cameraOptionsTable.row().padTop(12);
         cameraOptionsTable.add(resetCameraButton).width(300).height(50);
-        navigationOptionsTable.add(
-            SimulationButtons.createBackToLevelSelectionButton(game, this, skin)
-        ).width(300).height(50).padTop(12);
-
         toolButtons = new TextButton[] { squareButton, circleButton };
 
         Table panelTable = new Table(skin);
@@ -176,13 +191,54 @@ public abstract class LevelScreenBase extends ScreenAdapter {
         SimulationButtons.configureSimulationToolGroup(followObjectButton, toolButtons);
     }
 
+    protected final void configureNavigation(TextButton startButton) {
+        if (startButton != null) {
+            navigationOptionsTable.add(startButton).width(300).height(50);
+            navigationOptionsTable.row().padTop(12);
+        }
+
+        Table historyButtons = new Table(skin);
+        historyButtons.add(undoButton).expandX().fillX().height(50).padRight(6);
+        historyButtons.add(redoButton).expandX().fillX().height(50).padLeft(6);
+        navigationOptionsTable.add(historyButtons).width(300);
+        navigationOptionsTable.row().padTop(12);
+        navigationOptionsTable.add(backToMenuButton).width(300).height(50);
+    }
+
     private void updateButtons() {
-        SimulationButtons.updateDisabledButtons(
-            new TextButton[] { followObjectButton },
-            toolButtons,
-            simulationInputController.isWaitingForFollowTarget()
-        );
+        if (!simulationStarted) {
+            SimulationButtons.updateDisabledButtons(
+                new TextButton[] { followObjectButton },
+                toolButtons,
+                simulationInputController.isWaitingForFollowTarget()
+            );
+        }
         SimulationButtons.updateFollowObjectButtonLabel(followObjectButton, simulationInputController);
+        undoButton.setDisabled(simulationStarted || !simulationHistory.canUndo());
+        redoButton.setDisabled(simulationStarted || !simulationHistory.canRedo());
+    }
+
+    protected final void onSimulationStarted() {
+        simulationStarted = true;
+        setControlsDisabled(shapeOptionsTable);
+        shapeSizeControl.setColor(1f, 1f, 1f, 0.4f);
+        setControlsDisabled(physicsOptionsTable);
+        undoButton.setDisabled(true);
+        redoButton.setDisabled(true);
+    }
+
+    private static void setControlsDisabled(Group group) {
+        for (int i = 0; i < group.getChildren().size; i++) {
+            com.badlogic.gdx.scenes.scene2d.Actor actor = group.getChildren().get(i);
+            if (actor instanceof Button) {
+                ((Button) actor).setDisabled(true);
+            } else if (actor instanceof TextField) {
+                ((TextField) actor).setDisabled(true);
+            }
+            if (actor instanceof Group) {
+                setControlsDisabled((Group) actor);
+            }
+        }
     }
 
     protected final void addVictoryArea(VictoryArea victoryArea) {

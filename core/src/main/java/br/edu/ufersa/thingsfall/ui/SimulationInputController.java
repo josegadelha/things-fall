@@ -3,7 +3,6 @@ package br.edu.ufersa.thingsfall.ui;
 import br.edu.ufersa.thingsfall.math.Vector2;
 import br.edu.ufersa.thingsfall.physics.PhysicsObject;
 import br.edu.ufersa.thingsfall.physics.PhysicsWorld;
-import br.edu.ufersa.thingsfall.physics.constraint.Constraint;
 import br.edu.ufersa.thingsfall.physics.constraint.RevoluteConstraint;
 import br.edu.ufersa.thingsfall.physics.shape.CircleShape;
 import br.edu.ufersa.thingsfall.physics.shape.ConvexPolygonShape;
@@ -41,6 +40,7 @@ public class SimulationInputController {
     private final ScreenViewport viewport;
     private final OrthographicCamera camera;
     private final PhysicsWorld world;
+    private final SimulationHistory history;
     private final InputProcessor inputProcessor;
     private final float worldUnitsPerPixel;
 
@@ -65,17 +65,23 @@ public class SimulationInputController {
         ScreenViewport viewport,
         OrthographicCamera camera,
         PhysicsWorld world,
+        SimulationHistory history,
         float worldUnitsPerPixel
     ) {
         this.viewport = viewport;
         this.camera = camera;
         this.world = world;
+        this.history = history;
         this.worldUnitsPerPixel = worldUnitsPerPixel;
         inputProcessor = createInputProcessor();
     }
 
     public InputProcessor getInputProcessor() {
         return inputProcessor;
+    }
+
+    public SimulationHistory getHistory() {
+        return history;
     }
 
     public void setSelectedTool(Tool selectedTool) {
@@ -194,10 +200,7 @@ public class SimulationInputController {
             public boolean touchDown(int screenX, int screenY, int pointer, int button) {
                 // Middle-drag pans independently of the selected tool.
                 if (button == Input.Buttons.MIDDLE && isInsideViewport(screenX, screenY)) {
-                    isPanning = true;
-                    previousScreenX = screenX;
-                    previousScreenY = screenY;
-                    return true;
+                    return startPanning(screenX, screenY);
                 }
 
                 if (button != Input.Buttons.LEFT || !isInsideViewport(screenX, screenY)) {
@@ -206,104 +209,151 @@ public class SimulationInputController {
 
                 Vector2 worldPosition = getMouseWorldPosition(screenX, screenY);
                 if (cameraFollowEnabled && followedObject == null) {
-                    PhysicsObject selectedObject = findObjectAt(worldPosition);
-                    if (selectedObject != null) {
-                        followedObject = selectedObject;
+                    return selectFollowTarget(worldPosition);
+                }
+
+                return handleSelectedTool(worldPosition);
+            }
+
+            @Override
+            public boolean touchDragged(int screenX, int screenY, int pointer) {
+                Vector2 worldPosition = null;
+                if (mouseAnchorObject != null || draggedPhysicsObject != null || revoluteFirstObject != null) {
+                    worldPosition = getMouseWorldPosition(screenX, screenY);
+                }
+                if (updateActiveDrag(worldPosition)) {
+                    return true;
+                }
+                return panCamera(screenX, screenY);
+            }
+
+            @Override
+            public boolean touchUp(int screenX, int screenY, int pointer, int button) {
+                if (button == Input.Buttons.LEFT && mouseAnchorObject != null) {
+                    return finishObjectDrag();
+                }
+
+                if (button == Input.Buttons.LEFT && revoluteFirstObject != null) {
+                    return finishRevoluteConstraint(screenX, screenY);
+                }
+
+                if (button == Input.Buttons.LEFT && draggedPhysicsObject != null) {
+                    return finishImpulse(screenX, screenY);
+                }
+
+                if (button != Input.Buttons.MIDDLE || !isPanning) {
+                    return false;
+                }
+
+                isPanning = false;
+                return true;
+            }
+
+            private boolean startPanning(int screenX, int screenY) {
+                isPanning = true;
+                previousScreenX = screenX;
+                previousScreenY = screenY;
+                return true;
+            }
+
+            private boolean selectFollowTarget(Vector2 worldPosition) {
+                PhysicsObject selectedObject = findObjectAt(worldPosition);
+                if (selectedObject != null) {
+                    followedObject = selectedObject;
+                }
+                return true;
+            }
+
+            private boolean handleSelectedTool(Vector2 worldPosition) {
+                return switch (selectedTool) {
+                    case CREATE_SQUARE -> {
+                        history.addSquare(
+                            world,
+                            worldPosition.x,
+                            worldPosition.y,
+                            squareSideLength,
+                            newObjectStatic
+                        );
+                        yield true;
                     }
+                    case CREATE_CIRCLE -> {
+                        history.addCircle(
+                            world,
+                            worldPosition.x,
+                            worldPosition.y,
+                            circleRadius,
+                            newObjectStatic
+                        );
+                        yield true;
+                    }
+                    case CREATE_REVOLUTE_CONSTRAINT -> startRevoluteConstraint(worldPosition);
+                    case APPLY_IMPULSE -> startImpulse(worldPosition);
+                    case DRAG_OBJECT -> startObjectDrag(worldPosition);
+                    case NONE -> false;
+                };
+            }
+
+            private boolean startRevoluteConstraint(Vector2 worldPosition) {
+                revoluteFirstObject = findObjectAt(worldPosition, false);
+                if (revoluteFirstObject == null) {
+                    return false;
+                }
+                revoluteDragStart = worldPosition;
+                revoluteDragEnd = worldPosition;
+                return true;
+            }
+
+            private boolean startImpulse(Vector2 worldPosition) {
+                draggedPhysicsObject = findObjectAt(worldPosition, false);
+                if (draggedPhysicsObject == null) {
+                    return false;
+                }
+
+                impulseStart = worldPosition;
+                impulseEnd = worldPosition;
+                applyingImpulse = true;
+                return true;
+            }
+
+            private boolean startObjectDrag(Vector2 worldPosition) {
+                draggedPhysicsObject = findObjectAt(worldPosition, false);
+                if (draggedPhysicsObject == null) {
+                    return false;
+                }
+                if (draggedPhysicsObject.isStatic) {
+                    draggedPhysicsObject = null;
                     return true;
                 }
 
-                if (selectedTool == Tool.CREATE_REVOLUTE_CONSTRAINT) {
-                    revoluteFirstObject = findObjectAt(worldPosition, false);
-                    if (revoluteFirstObject == null) {
-                        return false;
-                    }
-                    revoluteDragStart = worldPosition;
-                    revoluteDragEnd = worldPosition;
+                mouseAnchorObject = new PhysicsObject(worldPosition.x, worldPosition.y, true, 1, 1);
+                world.objects.add(mouseAnchorObject);
+                mouseDragConstraint = new RevoluteConstraint(
+                    draggedPhysicsObject,
+                    mouseAnchorObject,
+                    worldPosition,
+                    worldPosition
+                );
+                world.constraints.add(mouseDragConstraint);
+                return true;
+            }
+
+            private boolean updateActiveDrag(Vector2 worldPosition) {
+                if (mouseAnchorObject != null) {
+                    mouseAnchorObject.position = worldPosition;
                     return true;
                 }
-
-                if (selectedTool == Tool.APPLY_IMPULSE) {
-                    // Start an impulse drag only on an object.
-                    draggedPhysicsObject = findObjectAt(worldPosition, false);
-                    if (draggedPhysicsObject == null) {
-                        return false;
-                    }
-
-                    impulseStart = worldPosition;
+                if (draggedPhysicsObject != null) {
                     impulseEnd = worldPosition;
-                    applyingImpulse = true;
                     return true;
                 }
-
-                if (selectedTool == Tool.DRAG_OBJECT) {
-                    draggedPhysicsObject = findObjectAt(worldPosition, false);
-                    if (draggedPhysicsObject == null) {
-                        draggedPhysicsObject = null;
-                        return false;
-                    }
-
-                    if (draggedPhysicsObject.isStatic) {
-                        draggedPhysicsObject = null;
-                        return true;
-                    }
-
-                    mouseAnchorObject = new PhysicsObject(
-                        worldPosition.x,
-                        worldPosition.y,
-                        true,
-                        1,
-                        1
-                    );
-                    world.objects.add(mouseAnchorObject);
-                    mouseDragConstraint = new RevoluteConstraint(
-                        draggedPhysicsObject,
-                        mouseAnchorObject,
-                        worldPosition,
-                        worldPosition
-                    );
-                    world.constraints.add(mouseDragConstraint);
-                    return true;
-                }
-
-                if (selectedTool == Tool.CREATE_SQUARE) {
-                    world.addSquare(
-                        worldPosition.x,
-                        worldPosition.y,
-                        squareSideLength,
-                        newObjectStatic
-                    );
-                    return true;
-                }
-                if (selectedTool == Tool.CREATE_CIRCLE) {
-                    world.addCircle(
-                        worldPosition.x,
-                        worldPosition.y,
-                        circleRadius,
-                        newObjectStatic
-                    );
+                if (revoluteFirstObject != null) {
+                    revoluteDragEnd = worldPosition;
                     return true;
                 }
                 return false;
             }
 
-            @Override
-            public boolean touchDragged(int screenX, int screenY, int pointer) {
-                if (mouseAnchorObject != null) {
-                    mouseAnchorObject.position = getMouseWorldPosition(screenX, screenY);
-                    return true;
-                }
-
-                if (draggedPhysicsObject != null) {
-                    impulseEnd = getMouseWorldPosition(screenX, screenY);
-                    return true;
-                }
-
-                if (revoluteFirstObject != null) {
-                    revoluteDragEnd = getMouseWorldPosition(screenX, screenY);
-                    return true;
-                }
-
+            private boolean panCamera(int screenX, int screenY) {
                 if (!isPanning) {
                     return false;
                 }
@@ -320,56 +370,46 @@ public class SimulationInputController {
                 return true;
             }
 
-            @Override
-            public boolean touchUp(int screenX, int screenY, int pointer, int button) {
-                if (button == Input.Buttons.LEFT && mouseAnchorObject != null) {
-                    world.constraints.remove(mouseDragConstraint);
-                    world.objects.remove(mouseAnchorObject);
-                    draggedPhysicsObject = null;
-                    mouseAnchorObject = null;
-                    mouseDragConstraint = null;
-                    return true;
-                }
+            private boolean finishObjectDrag() {
+                world.constraints.remove(mouseDragConstraint);
+                world.objects.remove(mouseAnchorObject);
+                draggedPhysicsObject = null;
+                mouseAnchorObject = null;
+                mouseDragConstraint = null;
+                return true;
+            }
 
-                if (button == Input.Buttons.LEFT && revoluteFirstObject != null) {
-                    revoluteDragEnd = getMouseWorldPosition(screenX, screenY);
-                    PhysicsObject secondObject = findObjectAt(revoluteDragEnd, false);
-                    if (secondObject != null && secondObject != revoluteFirstObject) {
-                        Constraint constraint = new RevoluteConstraint(
-                            revoluteFirstObject,
-                            secondObject,
-                            revoluteDragStart,
-                            revoluteDragEnd
-                        );
-                        world.constraints.add(constraint);
+            private boolean finishRevoluteConstraint(int screenX, int screenY) {
+                revoluteDragEnd = getMouseWorldPosition(screenX, screenY);
+                PhysicsObject secondObject = findObjectAt(revoluteDragEnd, false);
+                if (secondObject != null && secondObject != revoluteFirstObject) {
+                    history.addRevoluteConstraint(
+                        world,
+                        revoluteFirstObject,
+                        secondObject,
+                        revoluteDragStart,
+                        revoluteDragEnd
+                    );
+                }
+                revoluteFirstObject = null;
+                revoluteDragStart = null;
+                revoluteDragEnd = null;
+                return true;
+            }
+
+            private boolean finishImpulse(int screenX, int screenY) {
+                if (applyingImpulse && impulseStart != null) {
+                    Vector2 drag = getMouseWorldPosition(screenX, screenY).subtract(impulseStart);
+                    Vector2 impulse = getImpulseForDrag(drag);
+                    if (impulse.length() > 0) {
+                        draggedPhysicsObject.applyImpulse(impulse, impulseStart);
                     }
-                    revoluteFirstObject = null;
-                    revoluteDragStart = null;
-                    revoluteDragEnd = null;
-                    return true;
                 }
 
-                if (button == Input.Buttons.LEFT && draggedPhysicsObject != null) {
-                    if (applyingImpulse && impulseStart != null) {
-                        Vector2 drag = getMouseWorldPosition(screenX, screenY).subtract(impulseStart);
-                        Vector2 impulse = getImpulseForDrag(drag);
-                        if (impulse.length() > 0) {
-                            draggedPhysicsObject.applyImpulse(impulse, impulseStart);
-                        }
-                    }
-
-                    draggedPhysicsObject = null;
-                    impulseStart = null;
-                    impulseEnd = null;
-                    applyingImpulse = false;
-                    return true;
-                }
-
-                if (button != Input.Buttons.MIDDLE || !isPanning) {
-                    return false;
-                }
-
-                isPanning = false;
+                draggedPhysicsObject = null;
+                impulseStart = null;
+                impulseEnd = null;
+                applyingImpulse = false;
                 return true;
             }
 

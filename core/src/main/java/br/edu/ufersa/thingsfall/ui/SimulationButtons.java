@@ -20,6 +20,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.FocusListener;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.function.Consumer;
 
 public class SimulationButtons {
     // Button creation is provided through static methods, instances are not needed.
@@ -140,36 +141,8 @@ public class SimulationButtons {
         java.util.function.DoubleSupplier valueGetter
     ) {
         TextField valueField = new FocusClearingTextField(formatSize(initialValue), skin);
-        valueField.setTextFieldFilter((textField, character) -> {
-            if (!Character.isDigit(character) && character != '.') {
-                return false;
-            }
-
-            String currentText = textField.getText();
-            int cursorPosition = Math.max(0, Math.min(textField.getCursorPosition(), currentText.length()));
-            int start = cursorPosition;
-            int end = cursorPosition;
-            int selectionStart = textField.getSelectionStart();
-            if (selectionStart >= 0 && selectionStart != cursorPosition) {
-                int selectionPosition = Math.max(0, Math.min(selectionStart, currentText.length()));
-                start = Math.min(cursorPosition, selectionPosition);
-                end = Math.max(cursorPosition, selectionPosition);
-            }
-            String candidate = currentText.substring(0, start)
-                + character
-                + currentText.substring(end);
-            return candidate.matches("[0-9]*\\.?[0-9]{0,2}");
-        });
-        valueField.setTextFieldListener((textField, character) -> {
-            try {
-                double value = Double.parseDouble(textField.getText());
-                if (Double.isFinite(value) && value > 0) {
-                    valueSetter.accept(roundSize(value));
-                }
-            } catch (NumberFormatException ignored) {
-                // Intermediate input such as an empty field is not a complete value yet.
-            }
-        });
+        valueField.setTextFieldFilter(SimulationButtons::isValidSizeInput);
+        valueField.setTextFieldListener((textField, character) -> updateSizeFromInput(textField, valueSetter));
         valueField.addListener(new FocusListener() {
             @Override
             public void keyboardFocusChanged(FocusEvent event, Actor actor, boolean focused) {
@@ -179,20 +152,22 @@ public class SimulationButtons {
             }
         });
 
-        TextButton increaseButton = new TextButton("\u2191", skin);
-        TextButton decreaseButton = new TextButton("\u2193", skin);
-        increaseButton.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                updateSizeField(valueField, valueSetter, valueGetter, 1.0);
-            }
-        });
-        decreaseButton.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                updateSizeField(valueField, valueSetter, valueGetter, -1.0);
-            }
-        });
+        TextButton increaseButton = createSizeAdjustmentButton(
+            "\u2191",
+            1.0,
+            skin,
+            valueField,
+            valueSetter,
+            valueGetter
+        );
+        TextButton decreaseButton = createSizeAdjustmentButton(
+            "\u2193",
+            -1.0,
+            skin,
+            valueField,
+            valueSetter,
+            valueGetter
+        );
 
         Table arrowButtons = new Table(skin);
         arrowButtons.add(increaseButton).width(36).height(24);
@@ -204,6 +179,57 @@ public class SimulationButtons {
         sizeControl.add(valueField).width(135).height(50);
         sizeControl.add(arrowButtons).width(36).height(50).padLeft(6);
         return sizeControl;
+    }
+
+    private static boolean isValidSizeInput(TextField textField, char character) {
+        if (!Character.isDigit(character) && character != '.') {
+            return false;
+        }
+
+        String currentText = textField.getText();
+        int cursorPosition = Math.max(0, Math.min(textField.getCursorPosition(), currentText.length()));
+        int selectionPosition = textField.getSelectionStart();
+        int start = cursorPosition;
+        int end = cursorPosition;
+        if (selectionPosition >= 0 && selectionPosition != cursorPosition) {
+            selectionPosition = Math.max(0, Math.min(selectionPosition, currentText.length()));
+            start = Math.min(cursorPosition, selectionPosition);
+            end = Math.max(cursorPosition, selectionPosition);
+        }
+        String candidate = currentText.substring(0, start) + character + currentText.substring(end);
+        return candidate.matches("[0-9]*\\.?[0-9]{0,2}");
+    }
+
+    private static void updateSizeFromInput(
+        TextField textField,
+        java.util.function.DoubleConsumer valueSetter
+    ) {
+        try {
+            double value = Double.parseDouble(textField.getText());
+            if (Double.isFinite(value) && value > 0) {
+                valueSetter.accept(roundSize(value));
+            }
+        } catch (NumberFormatException ignored) {
+            // Intermediate input such as an empty field is not a complete value yet.
+        }
+    }
+
+    private static TextButton createSizeAdjustmentButton(
+        String label,
+        double delta,
+        Skin skin,
+        TextField valueField,
+        java.util.function.DoubleConsumer valueSetter,
+        java.util.function.DoubleSupplier valueGetter
+    ) {
+        TextButton button = new TextButton(label, skin);
+        button.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                updateSizeField(valueField, valueSetter, valueGetter, delta);
+            }
+        });
+        return button;
     }
 
     private static void updateSizeField(
@@ -272,20 +298,17 @@ public class SimulationButtons {
 
     // Creates a toggle button that enables or disables gravity in the physics world.
     public static TextButton createGravityButton(Skin skin, PhysicsWorld world) {
-        TextButton button = createToggleButton("Gravity", skin);
-        button.setChecked(true);
-        button.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                world.gravity = button.isChecked()
-                    ? new Vector2(0, -9.81)
-                    : new Vector2(0, 0);
-            }
-        });
-        return button;
+        return createToggleButton("Gravity", skin, true, enabled ->
+            world.gravity = enabled ? new Vector2(0, -9.81) : new Vector2(0, 0)
+        );
     }
 
-    public static TextButton createStartRestartButton(Skin skin, PhysicsWorld world, Runnable restart) {
+    public static TextButton createStartRestartButton(
+        Skin skin,
+        PhysicsWorld world,
+        Runnable onStarted,
+        Runnable restart
+    ) {
         TextButton button = new TextButton("Start", skin);
         button.addListener(new ChangeListener() {
             private boolean started;
@@ -304,33 +327,29 @@ public class SimulationButtons {
                 world.reduceVelocityEnabled = !world.reduceVelocityEnabled;
                 started = true;
                 button.setText("Restart");
+                onStarted.run();
             }
         });
         return button;
     }
 
     public static TextButton createVelocityReductionButton(Skin skin, PhysicsWorld world) {
-        TextButton button = createToggleButton("Reduce velocity", skin);
-        button.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                world.reduceVelocityEnabled = button.isChecked();
-            }
-        });
-        return button;
+        return createToggleButton(
+            "Reduce velocity",
+            skin,
+            world.reduceVelocityEnabled,
+            enabled -> world.reduceVelocityEnabled = enabled
+        );
     }
 
     // Creates a toggle button that enables or disables collisions in the physics world.
     public static TextButton createCollisionButton(Skin skin, PhysicsWorld world) {
-        TextButton button = createToggleButton("Collisions", skin);
-        button.setChecked(world.collisionsEnabled);
-        button.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                world.collisionsEnabled = button.isChecked();
-            }
-        });
-        return button;
+        return createToggleButton(
+            "Collisions",
+            skin,
+            world.collisionsEnabled,
+            enabled -> world.collisionsEnabled = enabled
+        );
     }
 
     // Controls whether newly created physics objects are static.
@@ -338,14 +357,7 @@ public class SimulationButtons {
         Skin skin,
         SimulationInputController inputController
     ) {
-        TextButton button = createToggleButton("Is static", skin);
-        button.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                inputController.setNewObjectStatic(button.isChecked());
-            }
-        });
-        return button;
+        return createToggleButton("Is static", skin, false, inputController::setNewObjectStatic);
     }
 
     // Creates a toggle button that selects the impulse tool.
@@ -403,14 +415,7 @@ public class SimulationButtons {
         Skin skin,
         SimulationInputController inputController
     ) {
-        TextButton button = createToggleButton("Follow", skin);
-        button.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                inputController.setCameraFollowEnabled(button.isChecked());
-            }
-        });
-        return button;
+        return createToggleButton("Follow", skin, false, inputController::setCameraFollowEnabled);
     }
 
     public static TextButton createResetCameraButton(
@@ -422,6 +427,38 @@ public class SimulationButtons {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 inputController.resetCameraToOrigin();
+            }
+        });
+        return button;
+    }
+
+    public static TextButton createUndoButton(
+        Skin skin,
+        SimulationHistory history,
+        PhysicsWorld world
+    ) {
+        TextButton button = new TextButton("Undo", skin);
+        button.setDisabled(!history.canUndo());
+        button.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                history.undo(world);
+            }
+        });
+        return button;
+    }
+
+    public static TextButton createRedoButton(
+        Skin skin,
+        SimulationHistory history,
+        PhysicsWorld world
+    ) {
+        TextButton button = new TextButton("Redo", skin);
+        button.setDisabled(!history.canRedo());
+        button.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                history.redo(world);
             }
         });
         return button;
@@ -498,27 +535,30 @@ public class SimulationButtons {
         Skin skin,
         SimulationInputController inputController
     ) {
-        TextButton button = createToggleButton(label, skin);
-        button.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                if (button.isChecked()) {
-                    inputController.setSelectedTool(tool);
-                } else if (inputController.getSelectedTool() == tool) {
-                    inputController.setSelectedTool(SimulationInputController.Tool.NONE);
-                }
+        return createToggleButton(label, skin, false, checked -> {
+            if (checked) {
+                inputController.setSelectedTool(tool);
+            } else if (inputController.getSelectedTool() == tool) {
+                inputController.setSelectedTool(SimulationInputController.Tool.NONE);
             }
         });
-        return button;
     }
 
     // Creates a button whose label reflects whether its toggle is on or off.
-    private static TextButton createToggleButton(String label, Skin skin) {
-        TextButton button = new TextButton(label + ": OFF", skin);
+    private static TextButton createToggleButton(
+        String label,
+        Skin skin,
+        boolean initiallyChecked,
+        Consumer<Boolean> onChanged
+    ) {
+        TextButton button = new TextButton(label + (initiallyChecked ? ": ON" : ": OFF"), skin);
+        button.setChecked(initiallyChecked);
         button.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                button.setText(label + (button.isChecked() ? ": ON" : ": OFF"));
+                boolean checked = button.isChecked();
+                button.setText(label + (checked ? ": ON" : ": OFF"));
+                onChanged.accept(checked);
             }
         });
         return button;

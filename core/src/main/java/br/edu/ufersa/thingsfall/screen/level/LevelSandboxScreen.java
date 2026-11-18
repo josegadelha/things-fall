@@ -22,6 +22,7 @@ public class LevelSandboxScreen extends LevelScreenBase {
             impulseButton,
             revoluteConstraintButton
         );
+        configureNavigation(null);
         shapeOptionsTable.row().padTop(12);
         shapeOptionsTable.add(staticButton).width(300).height(50);
 

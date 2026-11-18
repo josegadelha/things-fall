@@ -33,7 +33,7 @@ public class PhysicsWorld {
         this.collisionsEnabled = true;
     }
 
-    public void addSquare(double x, double y, double sideLength, boolean isStatic) {
+    public PhysicsObject addSquare(double x, double y, double sideLength, boolean isStatic) {
         if (!Double.isFinite(sideLength) || sideLength <= 0) {
             throw new IllegalArgumentException("Square side length must be finite and positive");
         }
@@ -55,9 +55,10 @@ public class PhysicsWorld {
             )
         );
         objects.add(square);
+        return square;
     }
 
-    public void addCircle(double x, double y, double radius, boolean isStatic) {
+    public PhysicsObject addCircle(double x, double y, double radius, boolean isStatic) {
         if (!Double.isFinite(radius) || radius <= 0) {
             throw new IllegalArgumentException("Circle radius must be finite and positive");
         }
@@ -73,6 +74,7 @@ public class PhysicsWorld {
             new CircleShape(radius)
         );
         objects.add(circle);
+        return circle;
     }
 
     public void addGeometry(PhysicsObject... objects) {

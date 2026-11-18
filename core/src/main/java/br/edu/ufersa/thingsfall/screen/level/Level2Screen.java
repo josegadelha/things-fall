@@ -7,13 +7,18 @@ import br.edu.ufersa.thingsfall.physics.shape.ConvexPolygonShape;
 import br.edu.ufersa.thingsfall.screen.geometry.Geometry2;
 import br.edu.ufersa.thingsfall.screen.geometry.VictoryArea;
 import br.edu.ufersa.thingsfall.ui.SimulationButtons;
+import br.edu.ufersa.thingsfall.ui.SimulationHistory;
 import com.badlogic.gdx.Game;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 
 public class Level2Screen extends LevelScreenBase {
     public Level2Screen(Game game) {
-        super(game, 1);
+        this(game, new SimulationHistory());
+    }
+
+    public Level2Screen(Game game, SimulationHistory simulationHistory) {
+        super(game, 1, simulationHistory);
         physicsWorld.gravity = new Vector2(0, 0);
         physicsWorld.collisionsEnabled = false;
         physicsWorld.reduceVelocityEnabled = true;
@@ -22,10 +27,16 @@ public class Level2Screen extends LevelScreenBase {
         TextButton impulseButton = SimulationButtons.createImpulseButton(skin, simulationInputController);
         TextButton revoluteConstraintButton = SimulationButtons.createRevoluteConstraintButton(skin, simulationInputController);
         TextButton impulseScalingButton = SimulationButtons.createImpulseScalingButton(skin, simulationInputController);
-        TextButton startButton = SimulationButtons.createStartRestartButton(skin, physicsWorld, () -> {
-            game.setScreen(new Level2Screen(game));
-            dispose();
-        });
+        TextButton startButton = SimulationButtons.createStartRestartButton(
+            skin,
+            physicsWorld,
+            this::onSimulationStarted,
+            () -> {
+                game.setScreen(new Level2Screen(game, simulationInputController.getHistory()));
+                dispose();
+            }
+        );
+        configureNavigation(startButton);
 
         configureTools(
             dragObjectButton,
@@ -33,8 +44,6 @@ public class Level2Screen extends LevelScreenBase {
             revoluteConstraintButton
         );
 
-        navigationOptionsTable.row().padTop(12);
-        navigationOptionsTable.add(startButton).width(300).height(50);
         physicsOptionsTable.row().padTop(12);
         physicsOptionsTable.add(impulseButton).width(300).height(50);
         physicsOptionsTable.row().padTop(12);
@@ -68,5 +77,6 @@ public class Level2Screen extends LevelScreenBase {
 
         physicsWorld.addGeometry(new Geometry2().spawnObjects());
         addVictoryArea(new VictoryArea(4, 3.4));
+        simulationHistory.restore(physicsWorld);
     }
 }
