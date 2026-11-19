@@ -104,7 +104,7 @@ public final class VictoryArea extends GeometryBase {
             return false;
         }
 
-        PhysicsObject player = world.objects.get(0);
+        PhysicsObject player = world.objects.getFirst();
         return collisionArea.overlaps(player.getAxisAlignedBoundingBox());
     }
 }

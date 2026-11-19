@@ -333,7 +333,7 @@ public class SimulationInputController {
                     worldPosition,
                     worldPosition
                 );
-                world.constraints.add(mouseDragConstraint);
+                world.constraints.addLast(mouseDragConstraint);
                 return true;
             }
 
@@ -470,8 +470,7 @@ public class SimulationInputController {
             Vector2 localPosition = physicsObject.worldToLocal(worldPosition);
 
             for (PhysicsShape physicsShape : physicsObject.shapes) {
-                if (physicsShape instanceof CircleShape) {
-                    CircleShape circleShape = (CircleShape) physicsShape;
+                if (physicsShape instanceof CircleShape circleShape) {
                     if (localPosition.subtract(circleShape.offset).length() <= circleShape.radius) {
                         return physicsObject;
                     }
