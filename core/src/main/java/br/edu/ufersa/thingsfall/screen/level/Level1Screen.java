@@ -31,10 +31,7 @@ public class Level1Screen extends LevelScreenBase {
             skin,
             physicsWorld,
             this::onSimulationStarted,
-            () -> {
-                game.setScreen(new Level1Screen(game, simulationInputController.getHistory()));
-                dispose();
-            }
+            () -> restartLevel(new Level1Screen(game, simulationInputController.getHistory()))
         );
         configureNavigation(startButton);
 

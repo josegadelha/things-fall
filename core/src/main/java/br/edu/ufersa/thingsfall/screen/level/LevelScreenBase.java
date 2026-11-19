@@ -227,6 +227,14 @@ public abstract class LevelScreenBase extends ScreenAdapter {
         redoButton.setDisabled(true);
     }
 
+    protected final void restartLevel(LevelScreenBase newScreen) {
+        newScreen.simulationCamera.position.set(simulationCamera.position);
+        newScreen.simulationCamera.zoom = simulationCamera.zoom;
+        newScreen.simulationCamera.update();
+        game.setScreen(newScreen);
+        dispose();
+    }
+
     private static void setControlsDisabled(Group group) {
         for (int i = 0; i < group.getChildren().size; i++) {
             com.badlogic.gdx.scenes.scene2d.Actor actor = group.getChildren().get(i);
