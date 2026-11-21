@@ -1,5 +1,6 @@
 package br.edu.ufersa.thingsfall.physics;
 
+import br.edu.ufersa.thingsfall.common.DynamicArray;
 import br.edu.ufersa.thingsfall.common.LinkedList;
 import br.edu.ufersa.thingsfall.math.Vector2;
 import br.edu.ufersa.thingsfall.physics.collision.CollisionHelper;
@@ -9,15 +10,12 @@ import br.edu.ufersa.thingsfall.physics.constraint.ConstraintSettings;
 import br.edu.ufersa.thingsfall.physics.shape.CircleShape;
 import br.edu.ufersa.thingsfall.physics.shape.ConvexPolygonShape;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class PhysicsWorld {
     public static final double MAX_OBJECT_DISTANCE = 1000.0;
     private static final double VELOCITY_DAMPING_RATE = 2.0;
     private static final double VELOCITY_STOP_THRESHOLD = 0.0001;
 
-    public List<PhysicsObject> objects;
+    public DynamicArray<PhysicsObject> objects;
     public LinkedList<Constraint> constraints;
     public Vector2 gravity;
     public int constraintIterations;
@@ -26,7 +24,7 @@ public class PhysicsWorld {
     public boolean collisionsEnabled;
 
     public PhysicsWorld() {
-        this.objects = new ArrayList<>();
+        this.objects = new DynamicArray<>();
         this.constraints = new LinkedList<Constraint>();
         this.gravity = new Vector2(0, -9.81);
         this.constraintIterations = 10;

@@ -1,5 +1,6 @@
 package br.edu.ufersa.thingsfall.physics.collision;
 
+import br.edu.ufersa.thingsfall.common.DynamicArray;
 import br.edu.ufersa.thingsfall.common.LinkedList;
 import br.edu.ufersa.thingsfall.math.Vector2;
 import br.edu.ufersa.thingsfall.physics.PhysicsObject;
@@ -10,8 +11,6 @@ import br.edu.ufersa.thingsfall.physics.shape.CircleShape;
 import br.edu.ufersa.thingsfall.physics.shape.ConvexPolygonShape;
 import br.edu.ufersa.thingsfall.physics.shape.PhysicsShape;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 public class CollisionHelper {
@@ -45,13 +44,13 @@ public class CollisionHelper {
     }
 
     // Finds contacts between all body pairs without reusing previous contacts.
-    public static LinkedList<ContactConstraint> handleCollisions(List<PhysicsObject> objects) {
+    public static LinkedList<ContactConstraint> handleCollisions(DynamicArray<PhysicsObject> objects) {
         return handleCollisions(objects, new LinkedList<>(), new LinkedList<>());
     }
 
     // Finds contacts between all body pairs and reuses matching previous contacts.
     public static LinkedList<ContactConstraint> handleCollisions(
-        List<PhysicsObject> objects,
+        DynamicArray<PhysicsObject> objects,
         LinkedList<ContactConstraint> contactConstraintsForReuse
     ) {
         return handleCollisions(objects, contactConstraintsForReuse, new LinkedList<>());
@@ -59,7 +58,7 @@ public class CollisionHelper {
 
     // Finds contacts while excluding body pairs connected by revolute constraints.
     public static LinkedList<ContactConstraint> handleCollisions(
-        List<PhysicsObject> objects,
+        DynamicArray<PhysicsObject> objects,
         LinkedList<ContactConstraint> contactConstraintsForReuse,
         LinkedList<Constraint> constraints
     ) {
@@ -112,7 +111,7 @@ public class CollisionHelper {
                 }
 
                 Vector2 collisionNormal = orientNormalFromBodyAToBodyB(collision.normal, bodyA, bodyB);
-                List<ContactPoint> contactPoints = getContactPoints(
+                DynamicArray<ContactPoint> contactPoints = getContactPoints(
                     bodyA,
                     shapeA,
                     shapeIndexOnBodyA,
@@ -216,7 +215,7 @@ public class CollisionHelper {
     }
 
     // Selects circle contact points or clips polygon faces to find contact points.
-    private static List<ContactPoint> getContactPoints(
+    private static DynamicArray<ContactPoint> getContactPoints(
         PhysicsObject bodyA,
         PhysicsShape shapeA,
         int shapeIndexOnBodyA,
@@ -287,14 +286,18 @@ public class CollisionHelper {
         int collisionFeatureIdentifier,
         LinkedList<ContactConstraint> contactConstraintsForReuse
     ) {
-        return contactConstraintsForReuse.removeIf(x -> x.bodyA == bodyA
+        ContactConstraint previousContact = contactConstraintsForReuse.search(x -> x.bodyA == bodyA
             && x.bodyB == bodyB
             && Objects.equals(x.collisionFeatureIdentifier, collisionFeatureIdentifier));
+        if (previousContact != null) {
+            contactConstraintsForReuse.remove(previousContact);
+        }
+        return previousContact;
     }
 
     // Builds outward-facing unit normals from consecutive polygon vertices.
-    private static List<Vector2> getPolygonNormals(List<Vector2> worldVertices) {
-        List<Vector2> normals = new ArrayList<>();
+    private static DynamicArray<Vector2> getPolygonNormals(DynamicArray<Vector2> worldVertices) {
+        DynamicArray<Vector2> normals = new DynamicArray<>();
         for (int vertexIndex = 0; vertexIndex < worldVertices.size(); vertexIndex++) {
             Vector2 startVertex = worldVertices.get(vertexIndex);
             Vector2 endVertex = worldVertices.get((vertexIndex + 1) % worldVertices.size());
@@ -305,7 +308,7 @@ public class CollisionHelper {
     }
 
     // Returns the minimum and maximum vertex projections along an axis.
-    private static double[] projectVertices(List<Vector2> vertices, Vector2 axis) {
+    private static double[] projectVertices(DynamicArray<Vector2> vertices, Vector2 axis) {
         double minimumProjection = Double.POSITIVE_INFINITY;
         double maximumProjection = Double.NEGATIVE_INFINITY;
 
@@ -325,10 +328,10 @@ public class CollisionHelper {
         PhysicsObject bodyB,
         ConvexPolygonShape shapeB
     ) {
-        List<Vector2> worldVerticesA = getWorldVertices(bodyA, shapeA);
-        List<Vector2> worldVerticesB = getWorldVertices(bodyB, shapeB);
-        List<Vector2> normalsA = getPolygonNormals(worldVerticesA);
-        List<Vector2> normalsB = getPolygonNormals(worldVerticesB);
+        DynamicArray<Vector2> worldVerticesA = getWorldVertices(bodyA, shapeA);
+        DynamicArray<Vector2> worldVerticesB = getWorldVertices(bodyB, shapeB);
+        DynamicArray<Vector2> normalsA = getPolygonNormals(worldVerticesA);
+        DynamicArray<Vector2> normalsB = getPolygonNormals(worldVerticesB);
 
         double greatestSeparationFromBodyA = Double.NEGATIVE_INFINITY;
         int referenceEdgeOnBodyA = 0;
@@ -388,8 +391,8 @@ public class CollisionHelper {
         ConvexPolygonShape polygonShape
     ) {
         Vector2 circleCenter = circleBody.localToWorld(circleShape.offset);
-        List<Vector2> polygonVertices = getWorldVertices(polygonBody, polygonShape);
-        List<Vector2> polygonNormals = getPolygonNormals(polygonVertices);
+        DynamicArray<Vector2> polygonVertices = getWorldVertices(polygonBody, polygonShape);
+        DynamicArray<Vector2> polygonNormals = getPolygonNormals(polygonVertices);
         double minimumPenetration = Double.POSITIVE_INFINITY;
         Vector2 collisionNormal = null;
 
@@ -465,13 +468,13 @@ public class CollisionHelper {
     }
 
     // Clips a segment against a line and adds an intersection when its endpoints straddle it.
-    private static List<Vector2> clipLineSegmentToLine(
+    private static DynamicArray<Vector2> clipLineSegmentToLine(
         Vector2 firstPoint,
         Vector2 secondPoint,
         Vector2 normal,
         Vector2 lineOffset
     ) {
-        List<Vector2> clippedPoints = new ArrayList<>();
+        DynamicArray<Vector2> clippedPoints = new DynamicArray<>();
         double firstDistance = firstPoint.subtract(lineOffset).dotProduct(normal);
         double secondDistance = secondPoint.subtract(lineOffset).dotProduct(normal);
 
@@ -492,7 +495,7 @@ public class CollisionHelper {
     }
 
     // Clips the incident polygon edge to the reference face and assigns stable feature identifiers.
-    private static List<ContactPoint> clipPolygonToPolygon(
+    private static DynamicArray<ContactPoint> clipPolygonToPolygon(
         PhysicsObject referenceBody,
         ConvexPolygonShape referenceShape,
         int referenceShapeIndex,
@@ -501,10 +504,10 @@ public class CollisionHelper {
         int incidentShapeIndex,
         CollisionInfo collision
     ) {
-        List<Vector2> referenceVertices = getWorldVertices(referenceBody, referenceShape);
-        List<Vector2> incidentVertices = getWorldVertices(incidentBody, incidentShape);
-        List<Vector2> referenceNormals = getPolygonNormals(referenceVertices);
-        List<Vector2> incidentNormals = getPolygonNormals(incidentVertices);
+        DynamicArray<Vector2> referenceVertices = getWorldVertices(referenceBody, referenceShape);
+        DynamicArray<Vector2> incidentVertices = getWorldVertices(incidentBody, incidentShape);
+        DynamicArray<Vector2> referenceNormals = getPolygonNormals(referenceVertices);
+        DynamicArray<Vector2> incidentNormals = getPolygonNormals(incidentVertices);
 
         int referenceEdgeIndex = collision.referenceEdgeIndex;
         Vector2 referenceEdgeStart = referenceVertices.get(referenceEdgeIndex);
@@ -525,14 +528,14 @@ public class CollisionHelper {
         Vector2 incidentEdgeStart = incidentVertices.get((incidentEdgeIndex + 1) % incidentVertices.size());
         Vector2 referenceTangent = normalizeOrDefault(referenceEdgeEnd.subtract(referenceEdgeStart));
 
-        List<Vector2> clippedPoints = clipLineSegmentToLine(
+        DynamicArray<Vector2> clippedPoints = clipLineSegmentToLine(
             incidentEdgeStart,
             incidentEdgeEnd,
             referenceTangent.scale(-1.0),
             referenceEdgeStart
         );
         if (clippedPoints.size() < 2) {
-            return new ArrayList<>();
+            return new DynamicArray<>();
         }
 
         clippedPoints = clipLineSegmentToLine(
@@ -542,7 +545,7 @@ public class CollisionHelper {
             referenceEdgeEnd
         );
 
-        List<ContactPoint> contactPoints = new ArrayList<>();
+        DynamicArray<ContactPoint> contactPoints = new DynamicArray<>();
         int referenceEdgeEndIndex = (referenceEdgeIndex + 1) % referenceVertices.size();
         int incidentEdgeStartIndex = (incidentEdgeIndex + 1) % incidentVertices.size();
         int featureIdentifierPrefix = ((referenceBody.identifier & 0xFF) << 24)
@@ -568,7 +571,7 @@ public class CollisionHelper {
     }
 
     // Places the circle contact point along the collision normal and identifies its shapes.
-    private static List<ContactPoint> clipCircleToPolygon(
+    private static DynamicArray<ContactPoint> clipCircleToPolygon(
         PhysicsObject circleBody,
         CircleShape circleShape,
         int circleShapeIndex,
@@ -591,11 +594,11 @@ public class CollisionHelper {
             polygonBody,
             polygonShapeIndex
         );
-        return List.of(new ContactPoint(contactPoint, collisionFeatureIdentifier));
+        return DynamicArray.of(new ContactPoint(contactPoint, collisionFeatureIdentifier));
     }
 
     // Uses the point on the first circle along the normal as the contact point.
-    private static List<ContactPoint> clipCircleToCircle(
+    private static DynamicArray<ContactPoint> clipCircleToCircle(
         PhysicsObject bodyA,
         CircleShape shapeA,
         int shapeIndexOnBodyA,
@@ -612,7 +615,7 @@ public class CollisionHelper {
             bodyB,
             shapeIndexOnBodyB
         );
-        return List.of(new ContactPoint(contactPoint, collisionFeatureIdentifier));
+        return DynamicArray.of(new ContactPoint(contactPoint, collisionFeatureIdentifier));
     }
 
     // Packs body and shape identifiers into the feature key used to persist circle contacts.
@@ -629,8 +632,8 @@ public class CollisionHelper {
     }
 
     // Transforms each polygon vertex from body-local space to world space.
-    private static List<Vector2> getWorldVertices(PhysicsObject body, ConvexPolygonShape shape) {
-        List<Vector2> worldVertices = new ArrayList<>();
+    private static DynamicArray<Vector2> getWorldVertices(PhysicsObject body, ConvexPolygonShape shape) {
+        DynamicArray<Vector2> worldVertices = new DynamicArray<>();
         for (Vector2 localVertex : shape.vertices) {
             worldVertices.add(body.localToWorld(localVertex));
         }

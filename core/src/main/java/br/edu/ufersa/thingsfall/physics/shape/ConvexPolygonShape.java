@@ -1,13 +1,10 @@
 package br.edu.ufersa.thingsfall.physics.shape;
 
+import br.edu.ufersa.thingsfall.common.DynamicArray;
 import br.edu.ufersa.thingsfall.math.Vector2;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
 public class ConvexPolygonShape implements PhysicsShape {
-    public final List<Vector2> vertices;
+    public final DynamicArray<Vector2> vertices;
 
     public ConvexPolygonShape(Vector2... vertices) {
         if (vertices.length < 3) {
@@ -15,7 +12,7 @@ public class ConvexPolygonShape implements PhysicsShape {
         }
 
         validateConvex(vertices);
-        this.vertices = new ArrayList<>(Arrays.asList(vertices));
+        this.vertices = DynamicArray.of(vertices);
     }
 
     private static void validateConvex(Vector2[] vertices) {

@@ -1,15 +1,12 @@
 package br.edu.ufersa.thingsfall.physics;
 
+import br.edu.ufersa.thingsfall.common.DynamicArray;
 import br.edu.ufersa.thingsfall.math.Vector2;
 import br.edu.ufersa.thingsfall.physics.collision.AxisAlignedBoundingBox;
 import br.edu.ufersa.thingsfall.physics.shape.CircleShape;
 import br.edu.ufersa.thingsfall.physics.shape.ConvexPolygonShape;
 import br.edu.ufersa.thingsfall.physics.shape.PhysicsShape;
 import com.badlogic.gdx.graphics.Color;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 public class PhysicsObject {
     private static int nextIdentifier = 1;
@@ -29,7 +26,7 @@ public class PhysicsObject {
     public boolean renderDetails = true;
     public int collisionMask = 0xFFFFFF;
     public int collisionMaskIgnore = 0x000000;
-    public final List<PhysicsShape> shapes;
+    public final DynamicArray<PhysicsShape> shapes;
 
     public PhysicsObject(
         double x,
@@ -72,7 +69,7 @@ public class PhysicsObject {
         this.isStatic = isStatic;
         this.mass = isStatic ? Double.POSITIVE_INFINITY : mass;
         this.momentOfInertia = isStatic ? Double.POSITIVE_INFINITY : momentOfInertia;
-        this.shapes = new ArrayList<>(Arrays.asList(shapes));
+        this.shapes = DynamicArray.of(shapes);
     }
 
     private static Color nextColor() {
