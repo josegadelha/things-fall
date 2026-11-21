@@ -1,17 +1,15 @@
 package br.edu.ufersa.thingsfall.ui;
 
+import br.edu.ufersa.thingsfall.common.Stack;
 import br.edu.ufersa.thingsfall.math.Vector2;
 import br.edu.ufersa.thingsfall.physics.PhysicsObject;
 import br.edu.ufersa.thingsfall.physics.PhysicsWorld;
 import br.edu.ufersa.thingsfall.physics.constraint.Constraint;
 import br.edu.ufersa.thingsfall.physics.constraint.RevoluteConstraint;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public final class SimulationHistory {
-    private final List<WorldAction> undoStack = new ArrayList<>();
-    private final List<WorldAction> redoStack = new ArrayList<>();
+    private final Stack<WorldAction> undoStack = new Stack<>();
+    private final Stack<WorldAction> redoStack = new Stack<>();
 
     public boolean canUndo() {
         return !undoStack.isEmpty();
@@ -58,9 +56,9 @@ public final class SimulationHistory {
             return;
         }
 
-        WorldAction action = undoStack.remove(undoStack.size() - 1);
+        WorldAction action = undoStack.pop();
         action.undo(world);
-        redoStack.add(action);
+        redoStack.push(action);
     }
 
     public void redo(PhysicsWorld world) {
@@ -68,20 +66,26 @@ public final class SimulationHistory {
             return;
         }
 
-        WorldAction action = redoStack.remove(redoStack.size() - 1);
+        WorldAction action = redoStack.pop();
         action.apply(world);
-        undoStack.add(action);
+        undoStack.push(action);
     }
 
     public void restore(PhysicsWorld world) {
-        for (WorldAction action : undoStack) {
+        Stack<WorldAction> actionsToRestore = new Stack<>();
+        while (!undoStack.isEmpty()) {
+            actionsToRestore.push(undoStack.pop());
+        }
+        while (!actionsToRestore.isEmpty()) {
+            WorldAction action = actionsToRestore.pop();
             action.apply(world);
+            undoStack.push(action);
         }
     }
 
     private void execute(PhysicsWorld world, WorldAction action) {
         action.apply(world);
-        undoStack.add(action);
+        undoStack.push(action);
         redoStack.clear();
     }
 
