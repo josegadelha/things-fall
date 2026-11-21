@@ -1,7 +1,6 @@
 package br.edu.ufersa.thingsfall.common;
-import java.util.ArrayList;
+
 import java.util.Iterator;
-import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Predicate;
 
@@ -183,7 +182,7 @@ public class LinkedList<T> implements Iterable<T> {
     }
 
     public boolean remove(T item) {
-        return this.removeIf((T x) -> x.equals(item)) != null;
+        return this.removeFirstMatching((T x) -> x.equals(item)) != null;
     }
 
     private Node searchBefore(Predicate<? super T> condition) {
@@ -202,20 +201,19 @@ public class LinkedList<T> implements Iterable<T> {
         return null;
     }
 
-    public T removeIf(Predicate<? super T> condition) {
+    private T removeFirstMatching(Predicate<? super T> condition) {
         Node before = null;
         Node removed = null;
 
         if (head == null) {
             return null;
         }
+        if (condition.test(head.data)) {
+            return removeFirst();
+        }
         before = searchBefore(condition);
         if (before == null) {
-            if (!head.data.equals(condition)) {
-                return null;
-            } else {
-                return removeFirst();
-            }
+            return null;
         } else {
             removed = before.next;
             if (removed == tail) {
@@ -229,6 +227,33 @@ public class LinkedList<T> implements Iterable<T> {
         }
     }
 
+    public boolean removeIf(Predicate<? super T> condition) {
+        boolean removed = false;
+        Node previous = null;
+        Node current = head;
+
+        while (current != null) {
+            Node next = current.next;
+            if (condition.test(current.data)) {
+                if (previous == null) {
+                    head = next;
+                } else {
+                    previous.next = next;
+                }
+                if (current == tail) {
+                    tail = previous;
+                }
+                current.next = null;
+                size--;
+                removed = true;
+            } else {
+                previous = current;
+            }
+            current = next;
+        }
+        return removed;
+    }
+
     public boolean isEmpty() {
         return size() == 0;
     }
@@ -238,4 +263,3 @@ public class LinkedList<T> implements Iterable<T> {
     }
 
 }
-
