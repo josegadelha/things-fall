@@ -1,5 +1,6 @@
 package br.edu.ufersa.thingsfall.physics;
 
+import br.edu.ufersa.thingsfall.common.LinkedList;
 import br.edu.ufersa.thingsfall.math.Vector2;
 import br.edu.ufersa.thingsfall.physics.collision.CollisionHelper;
 import br.edu.ufersa.thingsfall.physics.constraint.Constraint;
@@ -17,7 +18,7 @@ public class PhysicsWorld {
     private static final double VELOCITY_STOP_THRESHOLD = 0.0001;
 
     public List<PhysicsObject> objects;
-    public List<Constraint> constraints;
+    public LinkedList<Constraint> constraints;
     public Vector2 gravity;
     public int constraintIterations;
     public ConstraintSettings constraintSettings;
@@ -26,7 +27,7 @@ public class PhysicsWorld {
 
     public PhysicsWorld() {
         this.objects = new ArrayList<>();
-        this.constraints = new ArrayList<>();
+        this.constraints = new LinkedList<Constraint>();
         this.gravity = new Vector2(0, -9.81);
         this.constraintIterations = 10;
         this.constraintSettings = new ConstraintSettings();
@@ -90,7 +91,7 @@ public class PhysicsWorld {
         if (constraint == null) {
             throw new IllegalArgumentException("Constraint cannot be null.");
         }
-        constraints.add(constraint);
+        constraints.addLast(constraint);
     }
 
     public void solveConstraints(double timeStep, int iterationCount) {
@@ -156,10 +157,10 @@ public class PhysicsWorld {
     }
 
     private void detectCollisions() {
-        List<ContactConstraint> contactConstraintsForReuse = new ArrayList<>();
+        LinkedList<ContactConstraint> contactConstraintsForReuse = new LinkedList<>();
         for (Constraint constraint : constraints) {
             if (constraint instanceof ContactConstraint) {
-                contactConstraintsForReuse.add((ContactConstraint) constraint);
+                contactConstraintsForReuse.addLast((ContactConstraint) constraint);
             }
         }
 

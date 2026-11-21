@@ -1,5 +1,6 @@
 package br.edu.ufersa.thingsfall.physics.collision;
 
+import br.edu.ufersa.thingsfall.common.LinkedList;
 import br.edu.ufersa.thingsfall.math.Vector2;
 import br.edu.ufersa.thingsfall.physics.PhysicsObject;
 import br.edu.ufersa.thingsfall.physics.constraint.Constraint;
@@ -22,11 +23,11 @@ public class CollisionHelper {
 
     // Checks whether two bodies pass the static-body and collision-mask filters.
     public static boolean shouldCollide(PhysicsObject bodyA, PhysicsObject bodyB) {
-        return shouldCollide(bodyA, bodyB, List.of());
+        return shouldCollide(bodyA, bodyB, new LinkedList<>());
     }
 
     // Excludes bodies connected by a revolute constraint while preserving other collision filters.
-    public static boolean shouldCollide(PhysicsObject bodyA, PhysicsObject bodyB, List<Constraint> constraints) {
+    public static boolean shouldCollide(PhysicsObject bodyA, PhysicsObject bodyB, LinkedList<Constraint> constraints) {
         if (bodyA.isStatic && bodyB.isStatic) return false;
         if ((bodyA.collisionMask & bodyB.collisionMask) == 0) return false;
         if ((bodyA.collisionMaskIgnore & bodyB.collisionMask) == bodyB.collisionMask) return false;
@@ -44,25 +45,25 @@ public class CollisionHelper {
     }
 
     // Finds contacts between all body pairs without reusing previous contacts.
-    public static List<ContactConstraint> handleCollisions(List<PhysicsObject> objects) {
-        return handleCollisions(objects, new ArrayList<>(), List.of());
+    public static LinkedList<ContactConstraint> handleCollisions(List<PhysicsObject> objects) {
+        return handleCollisions(objects, new LinkedList<>(), new LinkedList<>());
     }
 
     // Finds contacts between all body pairs and reuses matching previous contacts.
-    public static List<ContactConstraint> handleCollisions(
+    public static LinkedList<ContactConstraint> handleCollisions(
         List<PhysicsObject> objects,
-        List<ContactConstraint> contactConstraintsForReuse
+        LinkedList<ContactConstraint> contactConstraintsForReuse
     ) {
-        return handleCollisions(objects, contactConstraintsForReuse, List.of());
+        return handleCollisions(objects, contactConstraintsForReuse, new LinkedList<>());
     }
 
     // Finds contacts while excluding body pairs connected by revolute constraints.
-    public static List<ContactConstraint> handleCollisions(
+    public static LinkedList<ContactConstraint> handleCollisions(
         List<PhysicsObject> objects,
-        List<ContactConstraint> contactConstraintsForReuse,
-        List<Constraint> constraints
+        LinkedList<ContactConstraint> contactConstraintsForReuse,
+        LinkedList<Constraint> constraints
     ) {
-        List<ContactConstraint> newContactConstraints = new ArrayList<>();
+        LinkedList<ContactConstraint> newContactConstraints = new LinkedList<>();
 
         for (int firstBodyIndex = 0; firstBodyIndex < objects.size(); firstBodyIndex++) {
             for (int secondBodyIndex = firstBodyIndex + 1; secondBodyIndex < objects.size(); secondBodyIndex++) {
@@ -76,30 +77,30 @@ public class CollisionHelper {
     }
 
     // Tests every eligible shape pair and creates or updates its contact constraints.
-    public static List<ContactConstraint> checkCollision(
+    public static LinkedList<ContactConstraint> checkCollision(
         PhysicsObject bodyA,
         PhysicsObject bodyB,
-        List<ContactConstraint> contactConstraintsForReuse
+        LinkedList<ContactConstraint> contactConstraintsForReuse
     ) {
-        return checkCollision(bodyA, bodyB, contactConstraintsForReuse, List.of());
+        return checkCollision(bodyA, bodyB, contactConstraintsForReuse, new LinkedList<>());
     }
 
     // Checks a body pair, skipping it when a revolute constraint connects the bodies.
-    public static List<ContactConstraint> checkCollision(
+    public static LinkedList<ContactConstraint> checkCollision(
         PhysicsObject bodyA,
         PhysicsObject bodyB,
-        List<ContactConstraint> contactConstraintsForReuse,
-        List<Constraint> constraints
+        LinkedList<ContactConstraint> contactConstraintsForReuse,
+        LinkedList<Constraint> constraints
     ) {
         if (!shouldCollide(bodyA, bodyB, constraints)
             || bodyA.shapes.isEmpty()
             || bodyB.shapes.isEmpty()
             || !bodyA.getAxisAlignedBoundingBox().overlaps(bodyB.getAxisAlignedBoundingBox())
         ) {
-            return new ArrayList<>();
+            return new LinkedList<>();
         }
 
-        List<ContactConstraint> contactConstraints = new ArrayList<>();
+        LinkedList<ContactConstraint> contactConstraints = new LinkedList<>();
         for (int shapeIndexOnBodyA = 0; shapeIndexOnBodyA < bodyA.shapes.size(); shapeIndexOnBodyA++) {
             PhysicsShape shapeA = bodyA.shapes.get(shapeIndexOnBodyA);
 
@@ -134,9 +135,9 @@ public class CollisionHelper {
                     if (reusedContact != null) {
                         reusedContact.isReused = true;
                         reusedContact.setCollisionData(contactPoint.position, collisionNormal, collision.penetration);
-                        contactConstraints.add(reusedContact);
+                        contactConstraints.addLast(reusedContact);
                     } else {
-                        contactConstraints.add(new ContactConstraint(
+                        contactConstraints.addLast(new ContactConstraint(
                             bodyA,
                             bodyB,
                             contactPoint.position,
@@ -284,18 +285,11 @@ public class CollisionHelper {
         PhysicsObject bodyA,
         PhysicsObject bodyB,
         int collisionFeatureIdentifier,
-        List<ContactConstraint> contactConstraintsForReuse
+        LinkedList<ContactConstraint> contactConstraintsForReuse
     ) {
-        for (int contactIndex = 0; contactIndex < contactConstraintsForReuse.size(); contactIndex++) {
-            ContactConstraint previousContact = contactConstraintsForReuse.get(contactIndex);
-            if (previousContact.bodyA == bodyA
-                && previousContact.bodyB == bodyB
-                && Objects.equals(previousContact.collisionFeatureIdentifier, collisionFeatureIdentifier)) {
-                contactConstraintsForReuse.remove(contactIndex);
-                return previousContact;
-            }
-        }
-        return null;
+        return contactConstraintsForReuse.removeIf(x -> x.bodyA == bodyA
+            && x.bodyB == bodyB
+            && Objects.equals(x.collisionFeatureIdentifier, collisionFeatureIdentifier));
     }
 
     // Builds outward-facing unit normals from consecutive polygon vertices.
@@ -415,7 +409,7 @@ public class CollisionHelper {
             }
         }
 
-        Vector2 closestVertex = polygonVertices.get(0);
+        Vector2 closestVertex = polygonVertices.getFirst();
         double minimumVertexDistance = closestVertex.subtract(circleCenter).length();
         for (Vector2 vertex : polygonVertices) {
             double vertexDistance = vertex.subtract(circleCenter).length();

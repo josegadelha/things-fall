@@ -52,7 +52,7 @@ public class ConfettiRenderer {
             float velocityX = MathUtils.random(2f, 6f) * (spawnsFromLeft ? 1f : -1f);
             float velocityY = MathUtils.random(8f, 14f);
 
-            var confetti = confettiWorld.objects.get(confettiWorld.objects.size() - 1);
+            var confetti = confettiWorld.objects.getLast();
             confetti.velocity = new Vector2(velocityX, velocityY);
             confetti.angularVelocity = MathUtils.random(-8f, 8f);
         }
