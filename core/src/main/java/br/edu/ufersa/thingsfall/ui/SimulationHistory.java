@@ -1,5 +1,6 @@
 package br.edu.ufersa.thingsfall.ui;
 
+import br.edu.ufersa.thingsfall.common.DynamicArray;
 import br.edu.ufersa.thingsfall.common.Stack;
 import br.edu.ufersa.thingsfall.math.Vector2;
 import br.edu.ufersa.thingsfall.physics.PhysicsObject;
@@ -10,6 +11,7 @@ import br.edu.ufersa.thingsfall.physics.constraint.RevoluteConstraint;
 public final class SimulationHistory {
     private final Stack<WorldAction> undoStack = new Stack<>();
     private final Stack<WorldAction> redoStack = new Stack<>();
+    private final StartingLayout startingLayout = new StartingLayout();
 
     public boolean canUndo() {
         return !undoStack.isEmpty();
@@ -45,8 +47,8 @@ public final class SimulationHistory {
             new CreateRevoluteConstraintAction(
                 bodyAIndex,
                 bodyBIndex,
-                copy(worldAnchorOnBodyA),
-                copy(worldAnchorOnBodyB)
+                bodyA.worldToLocal(worldAnchorOnBodyA),
+                bodyB.worldToLocal(worldAnchorOnBodyB)
             )
         );
     }
@@ -72,6 +74,8 @@ public final class SimulationHistory {
     }
 
     public void restore(PhysicsWorld world) {
+        startingLayout.restoreLevelObjects(world);
+
         Stack<WorldAction> actionsToRestore = new Stack<>();
         while (!undoStack.isEmpty()) {
             actionsToRestore.push(undoStack.pop());
@@ -83,14 +87,26 @@ public final class SimulationHistory {
         }
     }
 
+    public void saveStartingLayout() {
+        startingLayout.saveLevelObjects();
+
+        Stack<WorldAction> actions = new Stack<>();
+        while (!undoStack.isEmpty()) {
+            WorldAction action = undoStack.pop();
+            if (action instanceof CreateObjectAction createAction) {
+                createAction.saveStartingPose();
+            }
+            actions.push(action);
+        }
+        while (!actions.isEmpty()) {
+            undoStack.push(actions.pop());
+        }
+    }
+
     private void execute(PhysicsWorld world, WorldAction action) {
         action.apply(world);
         undoStack.push(action);
         redoStack.clear();
-    }
-
-    private static Vector2 copy(Vector2 vector) {
-        return new Vector2(vector.x, vector.y);
     }
 
     private interface WorldAction {
@@ -104,6 +120,48 @@ public final class SimulationHistory {
         CIRCLE
     }
 
+    private static final class StartingLayout {
+        private final DynamicArray<PhysicsObject> levelObjects = new DynamicArray<>();
+        private final DynamicArray<ObjectPose> levelObjectPoses = new DynamicArray<>();
+
+        private void restoreLevelObjects(PhysicsWorld world) {
+            if (!levelObjectPoses.isEmpty()) {
+                if (world.objects.size() != levelObjectPoses.size()) {
+                    throw new IllegalStateException("Level objects do not match the saved layout");
+                }
+                for (int i = 0; i < levelObjectPoses.size(); i++) {
+                    levelObjectPoses.get(i).apply(world.objects.get(i));
+                }
+            }
+            levelObjects.clear();
+            levelObjects.addAll(world.objects);
+        }
+
+        private void saveLevelObjects() {
+            levelObjectPoses.clear();
+            for (PhysicsObject object : levelObjects) {
+                levelObjectPoses.add(new ObjectPose(object));
+            }
+        }
+
+        private static final class ObjectPose {
+            private final double x;
+            private final double y;
+            private final double rotation;
+
+            private ObjectPose(PhysicsObject object) {
+                x = object.position.x;
+                y = object.position.y;
+                rotation = object.rotation;
+            }
+
+            private void apply(PhysicsObject object) {
+                object.position = new Vector2(x, y);
+                object.rotation = rotation;
+            }
+        }
+    }
+
     private static final class CreateObjectAction implements WorldAction {
         private final ObjectType type;
         private final double x;
@@ -111,6 +169,7 @@ public final class SimulationHistory {
         private final double size;
         private final boolean isStatic;
         private PhysicsObject object;
+        private StartingLayout.ObjectPose startingPose;
 
         private CreateObjectAction(ObjectType type, double x, double y, double size, boolean isStatic) {
             this.type = type;
@@ -125,6 +184,13 @@ public final class SimulationHistory {
             object = type == ObjectType.SQUARE
                 ? world.addSquare(x, y, size, isStatic)
                 : world.addCircle(x, y, size, isStatic);
+            if (startingPose != null) {
+                startingPose.apply(object);
+            }
+        }
+
+        private void saveStartingPose() {
+            startingPose = new StartingLayout.ObjectPose(object);
         }
 
         @Override
@@ -140,20 +206,20 @@ public final class SimulationHistory {
     private static final class CreateRevoluteConstraintAction implements WorldAction {
         private final int bodyAIndex;
         private final int bodyBIndex;
-        private final Vector2 worldAnchorOnBodyA;
-        private final Vector2 worldAnchorOnBodyB;
+        private final Vector2 localAnchorOnBodyA;
+        private final Vector2 localAnchorOnBodyB;
         private Constraint constraint;
 
         private CreateRevoluteConstraintAction(
             int bodyAIndex,
             int bodyBIndex,
-            Vector2 worldAnchorOnBodyA,
-            Vector2 worldAnchorOnBodyB
+            Vector2 localAnchorOnBodyA,
+            Vector2 localAnchorOnBodyB
         ) {
             this.bodyAIndex = bodyAIndex;
             this.bodyBIndex = bodyBIndex;
-            this.worldAnchorOnBodyA = worldAnchorOnBodyA;
-            this.worldAnchorOnBodyB = worldAnchorOnBodyB;
+            this.localAnchorOnBodyA = localAnchorOnBodyA;
+            this.localAnchorOnBodyB = localAnchorOnBodyB;
         }
 
         @Override
@@ -163,8 +229,8 @@ public final class SimulationHistory {
             constraint = new RevoluteConstraint(
                 bodyA,
                 bodyB,
-                worldAnchorOnBodyA,
-                worldAnchorOnBodyB
+                bodyA.localToWorld(localAnchorOnBodyA),
+                bodyB.localToWorld(localAnchorOnBodyB)
             );
             world.addConstraint(constraint);
         }

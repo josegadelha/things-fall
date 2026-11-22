@@ -219,6 +219,7 @@ public abstract class LevelScreenBase extends ScreenAdapter {
     }
 
     protected final void onSimulationStarted() {
+        simulationHistory.saveStartingLayout();
         simulationStarted = true;
         setControlsDisabled(shapeOptionsTable);
         shapeSizeControl.setColor(1f, 1f, 1f, 0.4f);
