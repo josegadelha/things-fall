@@ -13,6 +13,7 @@ public final class LevelProgress {
     // Serialized shape of the file must stay public with a no-arg constructor for Json.
     public static class Data {
         public boolean[] completedLevels = new boolean[LEVEL_COUNT];
+        public long[][] completionTimes = new long[LEVEL_COUNT][];
     }
 
     private static Data data;
@@ -37,13 +38,20 @@ public final class LevelProgress {
         return load().completedLevels[levelIndex];
     }
 
+    public static long[] getCompletionTimes(int levelIndex) {
+        if (levelIndex < 0 || levelIndex >= LEVEL_COUNT) {
+            return new long[] {};
+        }
+        return load().completionTimes[levelIndex];
+    }
+
     // The sandbox opens once the last level is completedLevels.
     public static boolean isSandboxUnlocked() {
         return isCompleted(LEVEL_COUNT - 1);
     }
 
     // Call this when the player finishes a level.
-    public static void markCompleted(int levelIndex) {
+    public static void markCompleted(int levelIndex, long completionTime) {
         if (levelIndex < 0 || levelIndex >= LEVEL_COUNT) {
             return;
         }
