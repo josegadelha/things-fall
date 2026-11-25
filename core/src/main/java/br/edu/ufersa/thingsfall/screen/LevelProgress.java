@@ -4,6 +4,9 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.JsonWriter;
+import com.badlogic.gdx.utils.Null;
+
+import java.util.Arrays;
 
 // Tracks which of the levels were completedLevels and persists that to a local JSON file.
 public final class LevelProgress {
@@ -59,8 +62,18 @@ public final class LevelProgress {
         Data current = load();
         if (!current.completedLevels[levelIndex]) {
             current.completedLevels[levelIndex] = true;
-            save();
         }
+        if (current.completionTimes[levelIndex] != null) {
+            long[] temp = new long[current.completionTimes[levelIndex].length + 1];
+            System.arraycopy(current.completionTimes[levelIndex], 0, temp, 0, current.completionTimes[levelIndex].length);
+            temp[temp.length - 1] = completionTime;
+            current.completionTimes[levelIndex] = temp;
+        } else {
+            current.completionTimes[levelIndex] = new long[] {
+                completionTime
+            };
+        }
+        save();
     }
 
     // Wipes all progress.
@@ -79,9 +92,19 @@ public final class LevelProgress {
         if (file.exists()) {
             try {
                 Data loaded = new Json().fromJson(Data.class, file);
-                if (loaded != null && loaded.completedLevels != null) {
-                    int count = Math.min(loaded.completedLevels.length, LEVEL_COUNT);
-                    System.arraycopy(loaded.completedLevels, 0, data.completedLevels, 0, count);
+                if (loaded != null) {
+                    if (loaded.completedLevels != null) {
+                        int count = Math.min(loaded.completedLevels.length, LEVEL_COUNT);
+                        System.arraycopy(loaded.completedLevels, 0, data.completedLevels, 0, count);
+                    }
+                    if (loaded.completionTimes != null) {
+                        for (int i = 0; i < LEVEL_COUNT; i++) {
+                            if (loaded.completionTimes[i] != null) {
+                                data.completionTimes[i] = new long[loaded.completionTimes[i].length];
+                                System.arraycopy(loaded.completionTimes[i], 0, data.completionTimes[i], 0, loaded.completionTimes[i].length);
+                            }
+                        }
+                    }
                 }
             } catch (RuntimeException e) {
                 Gdx.app.error("LevelProgress", "Could not read " + FILE_NAME + ", starting fresh", e);
