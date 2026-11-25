@@ -146,7 +146,7 @@ public class LevelSelectionScreen extends ScreenAdapter {
                                 if (times != null) {
                                     for (int i = 0; i < 3; i++) {
                                         if (i < times.length)
-                                            text += String.format("\n%s.%ss", times[i] / 1000, times[i] % 1000);
+                                            text += String.format("\n%s) %s.%ss", i+1, times[i] / 1000, times[i] % 1000);
                                         else
                                             text += "\n";
                                     }
