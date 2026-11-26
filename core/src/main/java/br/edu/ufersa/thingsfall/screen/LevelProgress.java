@@ -4,9 +4,6 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.JsonWriter;
-import com.badlogic.gdx.utils.Null;
-
-import java.util.Arrays;
 
 // Tracks which of the levels were completedLevels and persists that to a local JSON file.
 public final class LevelProgress {
@@ -45,7 +42,37 @@ public final class LevelProgress {
         if (levelIndex < 0 || levelIndex >= LEVEL_COUNT) {
             return new long[] {};
         }
-        return load().completionTimes[levelIndex];
+        long[] ordered = load().completionTimes[levelIndex];
+        quickSort(ordered, 0, ordered.length-1);
+        return ordered;
+    }
+
+    private static void quickSort(long[] array, int start, int end)
+    {
+        int i = start, j = end;
+        long pivot, aux;
+        pivot = array[(start + end) / 2];
+
+        while(i < j)
+        {
+            while(array[i] < pivot)
+                i++;
+            while(array[j] > pivot)
+                j--;
+            if (i <= j) {
+                aux = array[i];
+                array[i] = array[j];
+                array[j] = aux;
+                i++;
+                j--;
+            }
+        }
+        if (j > start) {
+            quickSort(array, start, j);
+        }
+        if (i < end) {
+            quickSort(array, i, end);
+        }
     }
 
     // The sandbox opens once the last level is completedLevels.
