@@ -43,7 +43,8 @@ public final class LevelProgress {
             return new long[] {};
         }
         long[] ordered = load().completionTimes[levelIndex];
-        quickSort(ordered, 0, ordered.length-1);
+        if (ordered != null)
+            quickSort(ordered, 0, ordered.length-1);
         return ordered;
     }
 
