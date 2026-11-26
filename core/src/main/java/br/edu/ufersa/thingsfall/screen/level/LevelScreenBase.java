@@ -80,6 +80,9 @@ public abstract class LevelScreenBase extends ScreenAdapter {
     private boolean winConditionMet;
     private boolean simulationStarted;
 
+    private Label timerLabel;
+    private long startTime;
+
     protected LevelScreenBase(Game game, int levelIndex) {
         this(game, levelIndex, new SimulationHistory());
     }
@@ -147,6 +150,9 @@ public abstract class LevelScreenBase extends ScreenAdapter {
         panelLayout.setFillParent(true);
         panelStage.addActor(panelLayout);
 
+        timerLabel = new Label("0.000 seconds", skin);
+        panelStage.addActor(timerLabel);
+
         ScrollablePanel settingsPanel = new ScrollablePanel(
             panelStage,
             panelViewport,
@@ -213,6 +219,10 @@ public abstract class LevelScreenBase extends ScreenAdapter {
                 simulationInputController.isWaitingForFollowTarget()
             );
         }
+        else if (!winConditionMet) {
+            long curTime = System.currentTimeMillis() - startTime;
+            timerLabel.setText(String.format("%s.%s seconds", curTime / 1000, curTime % 1000));
+        }
         SimulationButtons.updateFollowObjectButtonLabel(followObjectButton, simulationInputController);
         undoButton.setDisabled(simulationStarted || !simulationHistory.canUndo());
         redoButton.setDisabled(simulationStarted || !simulationHistory.canRedo());
@@ -226,6 +236,7 @@ public abstract class LevelScreenBase extends ScreenAdapter {
         setControlsDisabled(physicsOptionsTable);
         undoButton.setDisabled(true);
         redoButton.setDisabled(true);
+        startTime = System.currentTimeMillis();
     }
 
     protected final void restartLevel(LevelScreenBase newScreen) {
@@ -259,7 +270,6 @@ public abstract class LevelScreenBase extends ScreenAdapter {
     public void render(float delta) {
         float simulationWidth = simulationViewport.getWorldWidth() * simulationCamera.zoom;
         float simulationHeight = simulationViewport.getWorldHeight() * simulationCamera.zoom;
-
         ScreenUtils.clear(BACKGROUND_COLOR);
 
         if (!simulationInputController.isApplyingImpulse()) {
@@ -320,7 +330,7 @@ public abstract class LevelScreenBase extends ScreenAdapter {
     protected final void winConditionMet() {
         if (!winConditionMet && victoryArea != null && victoryArea.isReached(physicsWorld)) {
             winConditionMet = true;
-            LevelProgress.markCompleted(levelIndex);
+            LevelProgress.markCompleted(levelIndex, System.currentTimeMillis() - startTime);
             confettiRenderer.spawn();
         }
     }

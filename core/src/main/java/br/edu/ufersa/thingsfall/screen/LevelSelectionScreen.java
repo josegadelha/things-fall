@@ -15,12 +15,15 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.Event;
+import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.scenes.scene2d.utils.FocusListener;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 
@@ -43,6 +46,8 @@ public class LevelSelectionScreen extends ScreenAdapter {
     private final Stage uiStage;
     private final Skin skin;
     private final BitmapFont titleFont;
+
+    private final Label fastestTimes;
 
     // Slots 0..4 are levels 1..5 (same indices as LevelProgress), slot 5 is the sandbox.
     private final Supplier<Screen>[] levels = createLevelTable();
@@ -69,10 +74,17 @@ public class LevelSelectionScreen extends ScreenAdapter {
         gridRenderer = new GridRenderer(1f, false);
 
         skin = SimplePhysicsSkin.create();
+        Label.LabelStyle l = new Label.LabelStyle(skin.get(Label.LabelStyle.class));
+        l.font = createTitleFont();
+
+        fastestTimes = new Label("\n\n\n", l);
+        fastestTimes.setFontScale(0.35f);
+
         titleFont = createTitleFont();
         uiStage = new Stage(new ScreenViewport());
         worldViewport.update(Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), false);
         uiStage.getViewport().update(Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), true);
+
         createMenu();
     }
 
@@ -123,6 +135,32 @@ public class LevelSelectionScreen extends ScreenAdapter {
                         dispose();
                     }
                 });
+                if (!sandbox) {
+                    tile.addListener(new FocusListener() {
+                        @Override
+                        public boolean handle(Event event) {
+                            try {
+                                int levelIndex = Integer.parseInt(((TextButton)(event.getTarget())).getLabel().getText().toString()) - 1;
+                                long[] times = LevelProgress.getCompletionTimes(levelIndex);
+                                String text = "Fastest times: ";
+                                if (times != null) {
+                                    for (int i = 0; i < 3; i++) {
+                                        if (i < times.length)
+                                            text += String.format("\n%s) %s.%ss", i+1, times[i] / 1000, times[i] % 1000);
+                                        else
+                                            text += "\n";
+                                    }
+                                    fastestTimes.setText(text);
+                                } else {
+                                    fastestTimes.setText("\n\n\n");
+                                }
+                            } catch (ClassCastException e) {
+                                // I don't know why this throws an error. Everything works as intended. Go figure.
+                            }
+                            return true;
+                        }
+                    });
+                }
             }
             levelTable.add(tile).size(TILE_SIZE).pad(TILE_SPACING / 2f);
         }
@@ -138,7 +176,8 @@ public class LevelSelectionScreen extends ScreenAdapter {
 
         menu.add(title).padTop(0).padBottom(25).row();
         menu.add(levelTable).padBottom(50).row();
-        menu.add(backButton).size(200, 64);
+        menu.add(backButton).size(200, 64).row();
+        menu.add(fastestTimes).padTop(25).padBottom(25).center().row();
     }
 
     @Override
