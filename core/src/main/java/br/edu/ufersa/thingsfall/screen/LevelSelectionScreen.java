@@ -1,9 +1,7 @@
 package br.edu.ufersa.thingsfall.screen;
 
 import br.edu.ufersa.thingsfall.graphic.GridRenderer;
-import br.edu.ufersa.thingsfall.screen.level.Level1Screen;
-import br.edu.ufersa.thingsfall.screen.level.Level2Screen;
-import br.edu.ufersa.thingsfall.screen.level.LevelSandboxScreen;
+import br.edu.ufersa.thingsfall.screen.level.*;
 import br.edu.ufersa.thingsfall.ui.SimplePhysicsSkin;
 import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
@@ -57,9 +55,9 @@ public class LevelSelectionScreen extends ScreenAdapter {
         return new Supplier[] {
             () -> new Level1Screen(game),
             () -> new Level2Screen(game),
-            null,
-            null,
-            null,
+            () -> new Level3Screen(game),
+            () -> new Level4Screen(game),
+            () -> new Level5Screen(game),
             () -> new LevelSandboxScreen(game)
         };
     }
@@ -157,6 +155,15 @@ public class LevelSelectionScreen extends ScreenAdapter {
                             } catch (ClassCastException e) {
                                 // I don't know why this throws an error. Everything works as intended. Go figure.
                             }
+                            return true;
+                        }
+                    });
+                }
+                else {
+                    tile.addListener(new FocusListener() {
+                        @Override
+                        public boolean handle(Event event) {
+                            fastestTimes.setText("\n\n\n");
                             return true;
                         }
                     });
